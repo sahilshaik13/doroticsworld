@@ -15,13 +15,12 @@ export function DroneModel({ visible }: DroneModelProps) {
   const { mixer } = useAnimations(animations, scene)
   const [entranceProgress, setEntranceProgress] = useState(1)
 
-  // Make all mesh materials shiny and shadow-enabled
+  // Set up materials to reflect light & cast shadows
   useEffect(() => {
     scene.traverse((obj) => {
       if ((obj as THREE.Mesh).isMesh) {
         obj.castShadow = true
         obj.receiveShadow = true
-
         const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial
         if (mat) {
           mat.metalness = 1
@@ -32,6 +31,7 @@ export function DroneModel({ visible }: DroneModelProps) {
     })
   }, [scene])
 
+  // Handle Blender animation
   useEffect(() => {
     if (!visible) return
 
@@ -39,11 +39,12 @@ export function DroneModel({ visible }: DroneModelProps) {
       const action = mixer.clipAction(clip)
       action.reset()
       action.setLoop(THREE.LoopRepeat, Infinity)
+      action.timeScale = 0.35 // ✅ SMOOTH playback for propellers
       action.play()
     })
 
     const start = performance.now()
-    const duration = 2000
+    const duration = 1500
 
     const animateIn = () => {
       const elapsed = performance.now() - start
@@ -57,32 +58,37 @@ export function DroneModel({ visible }: DroneModelProps) {
     animateIn()
   }, [visible, animations, mixer])
 
+  // Animate drone movement and update mixer
   useFrame((state, delta) => {
-    if (!visible) return
-
-    mixer.update(delta)
+    const safeDelta = Math.min(delta, 1 / 30) // ✅ prevent jumpy motion
+    mixer.update(safeDelta)
 
     if (meshRef.current) {
       const time = state.clock.elapsedTime
-      const floatY = Math.sin(time * 0.8) * 0.5
-      const floatX = Math.sin(time * 0.5) * 0.25
-      const floatZ = Math.cos(time * 0.6) * 0.15
-      const entranceOffsetY = (1 - entranceProgress) * -12
+      const floatY = Math.sin(time * 0.8) * 0.3
+      const floatX = Math.sin(time * 0.5) * 0.15
+      const floatZ = Math.cos(time * 0.6) * 0.1
+      const entranceOffsetY = (1 - entranceProgress) * -10
 
       meshRef.current.position.set(floatX, floatY + entranceOffsetY, floatZ)
-      meshRef.current.rotation.set(0.4, 0.15, Math.sin(time * 0.5) * 0.1)
+
+      meshRef.current.rotation.set(
+        Math.PI / 4.5 + Math.sin(time * 0.3) * 0.01,
+        Math.PI / 3 + Math.sin(time * 0.4) * 0.01,
+        Math.sin(time * 0.5) * 0.02
+      )
     }
   })
 
   if (!visible) return null
 
   return (
-    <Float speed={0.3} rotationIntensity={0.05} floatIntensity={0.2}>
+    <Float speed={0.2} rotationIntensity={0.03} floatIntensity={0.2}>
       <group
         ref={meshRef}
-        position={[0, 0, -5]}
-        scale={[25, 25, 25]}
-        rotation={[0.4, 0.2, 0]}
+        position={[0, -1.2, 0]} // initial position
+        scale={[25, 25, 25]}    // large size
+        rotation={[Math.PI / 4.5, Math.PI / 3, 0]} // initial angled look
       >
         <primitive object={scene} />
       </group>
